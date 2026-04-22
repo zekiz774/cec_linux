@@ -32,6 +32,28 @@ impl AsyncCec {
             .async_io(Interest::READABLE, |inner| inner.rec())
             .await
     }
+    pub async fn request_data(
+        &self,
+        from: CecLogicalAddress,
+        to: CecLogicalAddress,
+        opcode: CecOpcode,
+        data: &[u8],
+        wait_for: CecOpcode,
+    ) -> Result<Vec<u8>> {
+        self.transmit_data(from, to, opcode, data).await?;
+
+        loop {
+            let msg = self.rec().await?;
+
+            if msg.initiator() == to && msg.destination() == from {
+                if let Some(Ok(op)) = msg.opcode() {
+                    if op == wait_for {
+                        return Ok(msg.parameters().to_vec());
+                    }
+                }
+            }
+        }
+    }
     pub async fn get_event(&self) -> Result<CecEvent> {
         self.0
             .async_io(Interest::PRIORITY, |inner| inner.get_event())
